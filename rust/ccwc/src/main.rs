@@ -16,9 +16,9 @@ fn main() {
         std::process::exit(1);
     }
 
-    let (line_count, word_count, char_count) = process_content(&contents);
+    let (line_count, word_count, byte_count) = process_content(&contents);
     match flag.as_str() {
-        "-c" => println!("Character count: {}", char_count),
+        "-c" => println!("Character count: {}", byte_count),
         "-l" => println!("Line count: {}", line_count),
         "-w" => println!("Word count: {}", word_count),
         _ => eprintln!("Invalid flag"),
@@ -28,8 +28,8 @@ fn main() {
 pub fn process_content(contents: &str) -> (usize, usize, usize) {
     let line_count = contents.lines().count();
     let word_count = contents.split_whitespace().count();
-    let char_count = contents.chars().count();
-    (line_count, word_count, char_count)
+    let byte_count = contents.len();
+    (line_count, word_count, byte_count)
 }
 
 #[cfg(test)]
@@ -66,9 +66,9 @@ mod tests {
         let contents = "Hello, World!";
 
         // Act
-        let (_, _, char_count) = process_content(contents);
+        let (_, _, byte_count) = process_content(contents);
 
         // Assert
-        assert_eq!(char_count, 13);
+        assert_eq!(byte_count, 13);
     }
 }
