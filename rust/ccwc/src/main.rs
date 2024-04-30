@@ -1,14 +1,11 @@
+use std::io::{self, Read};
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     let (flag, filename) = get_flag_and_filename_from(args);
 
-    let logged_filename = filename.clone();
-    let contents = std::fs::read_to_string(filename).expect("Failed to read file");
-    if contents.is_empty() {
-        eprintln!("File is empty");
-        std::process::exit(1);
-    }
+    let (contents, filename) = get_contents_from(filename);
 
     let (line_count, word_count, byte_count) = process_content(&contents);
 
@@ -16,12 +13,26 @@ fn main() {
         "-c" => println!("Character count: {}", byte_count),
         "-l" => println!("Line count: {}", line_count),
         "-w" => println!("Word count: {}", word_count),
-        "" => println!(
-            "{} {} {} {}",
-            line_count, word_count, byte_count, logged_filename
-        ),
+        "" => println!("{} {} {} {}", line_count, word_count, byte_count, filename),
         _ => eprintln!("Invalid flag"),
     }
+}
+
+fn get_contents_from(filename: String) -> (String, String) {
+    let mut contents = String::new();
+    if filename.is_empty() {
+        let stdin = io::stdin();
+        stdin.lock().read_to_string(&mut contents).unwrap();
+    } else {
+        contents = std::fs::read_to_string(filename.clone()).expect("Failed to read file");
+    }
+
+    if contents.is_empty() {
+        eprintln!("File is empty");
+        std::process::exit(1);
+    }
+
+    (contents, filename)
 }
 
 pub fn process_content(contents: &str) -> (usize, usize, usize) {
