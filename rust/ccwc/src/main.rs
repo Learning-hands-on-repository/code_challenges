@@ -3,9 +3,7 @@ use std::io::{self, Read};
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    let (flag, filename) = get_flag_and_filename_from(args);
-
-    let (contents, filename) = get_contents_from(filename);
+    let (flag, contents, filename) = get_contents(args);
 
     let (line_count, word_count, byte_count) = process_content(&contents);
 
@@ -18,14 +16,27 @@ fn main() {
     }
 }
 
-fn get_contents_from(filename: String) -> (String, String) {
+fn get_contents(args: Vec<String>) -> (String, String, String) {
+    // TODO: Unit test stdin
     let mut contents = String::new();
-    if filename.is_empty() {
-        let stdin = io::stdin();
-        stdin.lock().read_to_string(&mut contents).unwrap();
-    } else {
-        contents = std::fs::read_to_string(filename.clone()).expect("Failed to read file");
+    let stdin = io::stdin();
+    stdin.lock().read_to_string(&mut contents).unwrap();
+
+    match contents.is_empty() {
+        true => {
+            let (flag, filename) = get_flag_and_filename_from(args);
+            let (contents, filename) = get_contents_from(filename);
+            (flag, contents, filename)
+        }
+        false => {
+            let flag = get_flag(args);
+            (flag, contents, "".to_string())
+        }
     }
+}
+
+fn get_contents_from(filename: String) -> (String, String) {
+    let contents = std::fs::read_to_string(filename.clone()).expect("Failed to read file");
 
     if contents.is_empty() {
         eprintln!("File is empty");
@@ -42,6 +53,10 @@ pub fn process_content(contents: &str) -> (usize, usize, usize) {
     (line_count, word_count, byte_count)
 }
 
+fn get_flag(args: Vec<String>) -> String {
+    args[1].clone()
+}
+
 fn get_flag_and_filename_from(args: Vec<String>) -> (String, String) {
     if args.len() > 3 || args.len() < 2 {
         eprintln!("error: {}", "Usage: ccwc -[clw] <filename>");
@@ -51,12 +66,15 @@ fn get_flag_and_filename_from(args: Vec<String>) -> (String, String) {
     let flag;
     let filename;
 
-    if args.len() == 3 {
-        flag = args[1].clone();
-        filename = args[2].clone();
-    } else {
-        flag = "".to_string();
-        filename = args[1].clone();
+    match args.len() {
+        3 => {
+            flag = args[1].clone();
+            filename = args[2].clone();
+        }
+        _ => {
+            flag = "".to_string();
+            filename = args[1].clone();
+        }
     }
 
     (flag, filename)
@@ -143,6 +161,18 @@ mod tests {
             // Assert
             assert_eq!(flag, "-c");
             assert_eq!(filename, "filename.txt");
+        }
+
+        #[test]
+        fn test_get_flag() {
+            // Arrange
+            let args = vec!["ccwc".to_string(), "-c".to_string()];
+
+            // Act
+            let flag = get_flag(args);
+
+            // Assert
+            assert_eq!(flag, "-c");
         }
     }
 }
