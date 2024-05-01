@@ -3,11 +3,13 @@ use std::io::{self, Read};
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    let (flag, contents, filename) = get_contents(args);
+    let (reading_mode, option, filename) = get_reading_configuration(args);
 
-    let (line_count, word_count, byte_count) = process_content(&contents);
+    let (contents, filename) = get_contents(reading_mode, filename);
 
-    match flag.as_str() {
+    let (line_count, word_count, byte_count) = get_content_information(&contents);
+
+    match option.as_str() {
         "-c" => println!("Character count: {}", byte_count),
         "-l" => println!("Line count: {}", line_count),
         "-w" => println!("Word count: {}", word_count),
@@ -16,21 +18,47 @@ fn main() {
     }
 }
 
-fn get_contents(args: Vec<String>) -> (String, String, String) {
-    // TODO: Unit test stdin
-    let mut contents = String::new();
-    let stdin = io::stdin();
-    stdin.lock().read_to_string(&mut contents).unwrap();
+fn get_reading_configuration(args: Vec<String>) -> (String, String, String) {
+    if args.len() > 3 || args.len() < 2 {
+        eprintln!("error: {}", "Usage: ccwc -[clw] <filename>");
+        std::process::exit(1);
+    }
 
-    match contents.is_empty() {
-        true => {
-            let (flag, filename) = get_flag_and_filename_from(args);
-            let (contents, filename) = get_contents_from(filename);
-            (flag, contents, filename)
+    match args.len() {
+        3 => ("from_file".to_string(), args[1].clone(), args[2].clone()),
+        2 => {
+            let reading_mode;
+            if args[1].starts_with("-") {
+                reading_mode = "from_stdin".to_string();
+                return (reading_mode, args[1].clone(), "".to_string());
+            } else {
+                reading_mode = "from_file".to_string();
+                return (reading_mode, "default".to_string(), args[1].clone());
+            }
         }
-        false => {
-            let flag = get_flag(args);
-            (flag, contents, "".to_string())
+        _ => ("".to_string(), "default".to_string(), "".to_string()),
+    }
+}
+
+// TODO: How to test this?
+fn get_contents(reading_mode: String, filename: String) -> (String, String) {
+    match reading_mode.as_str() {
+        "from_file" => {
+            let (contents, filename) = get_contents_from(filename);
+            (contents, filename)
+        }
+        "from_stdin" => {
+            // TODO: Unit test stdin
+            let mut contents = String::new();
+            let stdin = io::stdin();
+            // TODO: Handle empty stdin
+            stdin.lock().read_to_string(&mut contents).unwrap();
+
+            (contents, "".to_string())
+        }
+        _ => {
+            eprintln!("Invalid reading mode");
+            std::process::exit(1);
         }
     }
 }
@@ -46,45 +74,68 @@ fn get_contents_from(filename: String) -> (String, String) {
     (contents, filename)
 }
 
-pub fn process_content(contents: &str) -> (usize, usize, usize) {
+pub fn get_content_information(contents: &str) -> (usize, usize, usize) {
     let line_count = contents.lines().count();
     let word_count = contents.split_whitespace().count();
     let byte_count = contents.len();
     (line_count, word_count, byte_count)
 }
 
-fn get_flag(args: Vec<String>) -> String {
-    args[1].clone()
-}
-
-fn get_flag_and_filename_from(args: Vec<String>) -> (String, String) {
-    if args.len() > 3 || args.len() < 2 {
-        eprintln!("error: {}", "Usage: ccwc -[clw] <filename>");
-        std::process::exit(1);
-    }
-
-    let flag;
-    let filename;
-
-    match args.len() {
-        3 => {
-            flag = args[1].clone();
-            filename = args[2].clone();
-        }
-        _ => {
-            flag = "".to_string();
-            filename = args[1].clone();
-        }
-    }
-
-    (flag, filename)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    mod process_content {
+    mod get_reading_mode {
+        use super::*;
+
+        #[test]
+        fn test_get_reading_mode_and_option() {
+            // Arrange
+            let args = vec![
+                "ccwc".to_string(),
+                "-c".to_string(),
+                "filename.txt".to_string(),
+            ];
+
+            // Act
+            let (reading_mode, option, filename) = get_reading_configuration(args);
+
+            // Assert
+            assert_eq!(reading_mode, "from_file");
+            assert_eq!(option, "-c");
+            assert_eq!(filename, "filename.txt");
+        }
+
+        #[test]
+        fn test_reading_file_mode_with_default() {
+            // Arrange
+            let args = vec!["ccwc".to_string(), "filename.txt".to_string()];
+
+            // Act
+            let (reading_mode, option, filename) = get_reading_configuration(args);
+
+            // Assert
+            assert_eq!(reading_mode, "from_file");
+            assert_eq!(option, "default");
+            assert_eq!(filename, "filename.txt");
+        }
+
+        #[test]
+        fn test_reading_stdin_mode() {
+            // Arrange
+            let args = vec!["ccwc".to_string(), "-c".to_string()];
+
+            // Act
+            let (reading_mode, option, filename) = get_reading_configuration(args);
+
+            // Assert
+            assert_eq!(reading_mode, "from_stdin");
+            assert_eq!(option, "-c");
+            assert_eq!(filename, "");
+        }
+    }
+
+    mod get_content_information {
         use super::*;
 
         #[test]
@@ -93,7 +144,7 @@ mod tests {
             let contents = "";
 
             // Act
-            let (line_count, word_count, byte_count) = process_content(contents);
+            let (line_count, word_count, byte_count) = get_content_information(contents);
 
             // Assert
             assert_eq!(line_count, 0);
@@ -107,7 +158,7 @@ mod tests {
             let contents = "Hello, World!";
 
             // Act
-            let (line_count, word_count, byte_count) = process_content(contents);
+            let (line_count, word_count, byte_count) = get_content_information(contents);
 
             // Assert
             assert_eq!(line_count, 1);
@@ -121,58 +172,12 @@ mod tests {
             let contents = "Hello, World!\nHello, World!";
 
             // Act
-            let (line_count, word_count, byte_count) = process_content(contents);
+            let (line_count, word_count, byte_count) = get_content_information(contents);
 
             // Assert
             assert_eq!(line_count, 2);
             assert_eq!(word_count, 4);
             assert_eq!(byte_count, 27);
-        }
-    }
-
-    mod get_flag_filename_from {
-        use super::*;
-
-        #[test]
-        fn test_valid_argument_count() {
-            // Arrange
-            let args = vec!["ccwc".to_string(), "filename.txt".to_string()];
-
-            // Act
-            let (flag, filename) = get_flag_and_filename_from(args);
-
-            // Assert
-            assert_eq!(flag, "");
-            assert_eq!(filename, "filename.txt");
-        }
-
-        #[test]
-        fn test_get_flag_filename_with_parameter() {
-            // Arrange
-            let args = vec![
-                "ccwc".to_string(),
-                "-c".to_string(),
-                "filename.txt".to_string(),
-            ];
-
-            // Act
-            let (flag, filename) = get_flag_and_filename_from(args);
-
-            // Assert
-            assert_eq!(flag, "-c");
-            assert_eq!(filename, "filename.txt");
-        }
-
-        #[test]
-        fn test_get_flag() {
-            // Arrange
-            let args = vec!["ccwc".to_string(), "-c".to_string()];
-
-            // Act
-            let flag = get_flag(args);
-
-            // Assert
-            assert_eq!(flag, "-c");
         }
     }
 }
